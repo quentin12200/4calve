@@ -11,6 +11,8 @@ import MealsPage from './pages/MealsPage'
 import CalendarPage from './pages/CalendarPage'
 import ExpensesPage from './pages/ExpensesPage'
 import NotesPage from './pages/NotesPage'
+import ChatPage from './pages/ChatPage'
+import GuestShoppingPage from './pages/GuestShoppingPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -20,17 +22,15 @@ function ProtectedRoute({ children }) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '36px', marginBottom: '16px' }}>🏠</div>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>Chargement…</div>
+          <div style={{ fontSize: 36, marginBottom: 16 }}>🏠</div>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>Chargement…</div>
         </div>
       </div>
     )
   }
 
   if (!user) return <Navigate to="/auth" replace />
-
   if (!household) return <OnboardingPage />
-
   return children
 }
 
@@ -40,7 +40,7 @@ function AppRoutes() {
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)' }}>
-        <div style={{ fontSize: '36px' }}>🏠</div>
+        <div style={{ fontSize: 36 }}>🏠</div>
       </div>
     )
   }
@@ -48,6 +48,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
+      <Route path="/share/:householdId" element={<GuestShoppingPage />} />
       <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
       <Route path="/shopping" element={<ProtectedRoute><ShoppingPage /></ProtectedRoute>} />
@@ -55,6 +56,7 @@ function AppRoutes() {
       <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
       <Route path="/expenses" element={<ProtectedRoute><ExpensesPage /></ProtectedRoute>} />
       <Route path="/notes" element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
@@ -73,8 +75,8 @@ function App() {
                 background: 'var(--color-surface)',
                 color: 'var(--color-text)',
                 border: '1px solid var(--color-border)',
-                borderRadius: '10px',
-                fontSize: '14px',
+                borderRadius: 10,
+                fontSize: 14,
               },
             }}
           />

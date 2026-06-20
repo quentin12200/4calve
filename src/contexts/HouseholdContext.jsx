@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import {
   doc, getDoc, setDoc, updateDoc, onSnapshot, collection,
-  addDoc, deleteDoc, getDocs, query, orderBy, where, serverTimestamp
+  addDoc, deleteDoc, getDocs, query, orderBy, where, serverTimestamp, limit
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { useAuth } from './AuthContext'
@@ -22,6 +22,8 @@ export function HouseholdProvider({ children }) {
   const [events, setEvents] = useState([])
   const [expenses, setExpenses] = useState([])
   const [notes, setNotes] = useState([])
+  const [messages, setMessages] = useState([])
+  const [shoppingTemplates, setShoppingTemplates] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -60,6 +62,12 @@ export function HouseholdProvider({ children }) {
     subs.push(onSnapshot(query(collection(db, `households/${hid}/notes`), orderBy('createdAt', 'desc')), s => {
       setNotes(s.docs.map(d => ({ id: d.id, ...d.data() })))
     }))
+    subs.push(onSnapshot(query(collection(db, `households/${hid}/messages`), orderBy('createdAt', 'asc'), limit(100)), s => {
+      setMessages(s.docs.map(d => ({ id: d.id, ...d.data() })))
+    }))
+    subs.push(onSnapshot(query(collection(db, `households/${hid}/shoppingTemplates`), orderBy('createdAt', 'desc')), s => {
+      setShoppingTemplates(s.docs.map(d => ({ id: d.id, ...d.data() })))
+    }))
 
     if (household.members) {
       Promise.all(household.members.map(uid => getDoc(doc(db, 'users', uid))))
@@ -69,10 +77,20 @@ export function HouseholdProvider({ children }) {
     return () => subs.forEach(u => u())
   }, [household?.id])
 
+  // Also re-listen to household doc for budget changes
+  useEffect(() => {
+    if (!household?.id) return
+    const unsub = onSnapshot(doc(db, 'households', household.id), snap => {
+      if (snap.exists()) setHousehold(h => ({ ...h, ...snap.data() }))
+    })
+    return unsub
+  }, [household?.id])
+
   const createHousehold = async (name) => {
     const code = generateCode()
     const ref = await addDoc(collection(db, 'households'), {
-      name, inviteCode: code, members: [user.uid], createdBy: user.uid, createdAt: serverTimestamp()
+      name, inviteCode: code, members: [user.uid], createdBy: user.uid, createdAt: serverTimestamp(),
+      budgets: {}
     })
     await setDoc(doc(db, 'users', user.uid), { householdId: ref.id }, { merge: true })
     return { id: ref.id, inviteCode: code }
@@ -112,16 +130,37 @@ export function HouseholdProvider({ children }) {
   const updateNote = (id, data) => updateDoc(doc(db, h('notes'), id), { ...data, updatedAt: serverTimestamp() })
   const deleteNote = (id) => deleteDoc(doc(db, h('notes'), id))
 
+  const sendMessage = (text) => addDoc(collection(db, h('messages')), { text: text.trim(), createdBy: user.uid, createdAt: serverTimestamp() })
+  const deleteMessage = (id) => deleteDoc(doc(db, h('messages'), id))
+
+  const saveShoppingTemplate = async (name, items) => {
+    await addDoc(collection(db, h('shoppingTemplates')), {
+      name, items, createdBy: user.uid, createdAt: serverTimestamp()
+    })
+  }
+  const deleteShoppingTemplate = (id) => deleteDoc(doc(db, h('shoppingTemplates'), id))
+  const loadShoppingTemplate = async (template) => {
+    await Promise.all(template.items.map(item =>
+      addDoc(collection(db, h('shopping')), { ...item, createdBy: user.uid, createdAt: serverTimestamp(), checked: false })
+    ))
+  }
+
+  const updateBudgets = (budgets) => updateDoc(doc(db, 'households', household.id), { budgets })
+
   return (
     <HouseholdContext.Provider value={{
-      household, members, tasks, shopping, meals, events, expenses, notes, loading,
+      household, members, tasks, shopping, meals, events, expenses, notes,
+      messages, shoppingTemplates, loading,
       createHousehold, joinHousehold,
       addTask, updateTask, deleteTask,
       addShoppingItem, updateShoppingItem, deleteShoppingItem,
       addMeal, updateMeal, deleteMeal,
       addEvent, updateEvent, deleteEvent,
       addExpense, updateExpense, deleteExpense,
-      addNote, updateNote, deleteNote
+      addNote, updateNote, deleteNote,
+      sendMessage, deleteMessage,
+      saveShoppingTemplate, deleteShoppingTemplate, loadShoppingTemplate,
+      updateBudgets,
     }}>
       {children}
     </HouseholdContext.Provider>
