@@ -125,7 +125,7 @@ function AddEventModal({ open, onClose, defaultDate, members, addEvent }) {
 }
 
 export default function CalendarPage() {
-  const { events, members, addEvent, deleteEvent } = useHousehold()
+  const { events, members, addEvent, deleteEvent, updateEvent } = useHousehold()
   const { connected, loading: gcLoading, connect, getEvents, convertGoogleEventToLocal } = useGoogleCalendar()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(new Date())
@@ -145,7 +145,31 @@ export default function CalendarPage() {
       setSyncing(false)
     }
   }
+  const [fixing, setFixing] = useState(false)
   const [addModal, setAddModal] = useState(false)
+
+  const fixExistingDates = async () => {
+    if (!window.confirm(`Corriger les dates de ${events.length} événement(s) en ajoutant +1 jour ?`)) return
+    setFixing(true)
+    try {
+      await Promise.all(events.map(e => {
+        const shiftDay = (val) => {
+          if (!val) return null
+          const d = val.toDate ? val.toDate() : new Date(val)
+          return new Date(d.getTime() + 86400000)
+        }
+        return updateEvent(e.id, {
+          startDate: shiftDay(e.startDate),
+          endDate: shiftDay(e.endDate),
+        })
+      }))
+      toast.success(`${events.length} événement(s) corrigé(s) !`)
+    } catch {
+      toast.error('Erreur lors de la correction')
+    } finally {
+      setFixing(false)
+    }
+  }
 
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
@@ -182,6 +206,12 @@ export default function CalendarPage() {
 
   const topBarActions = (
     <div style={{ display: 'flex', gap: 8 }}>
+      {events.length > 0 && (
+        <button onClick={fixExistingDates} disabled={fixing} title="Corriger les dates décalées (+1 jour)" style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {fixing ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : '🔧'}
+          Corriger dates
+        </button>
+      )}
       <button onClick={handleSyncGoogle} disabled={syncing} style={{ background: connected ? 'var(--color-success)' : 'var(--color-surface)', color: connected ? 'white' : 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
         {syncing ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <CalendarCheck size={14} />}
         {connected ? 'Sync Google' : 'Google Agenda'}
