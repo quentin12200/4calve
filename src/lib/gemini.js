@@ -14,10 +14,17 @@ function extractJSON(text) {
   return JSON.parse(clean.slice(start, end + 1))
 }
 
-export async function generateRecipe(dishName, servings = 2, constraints = '') {
+function checkApiKey() {
   if (!apiKey || apiKey === 'your_gemini_api_key_here') {
     throw new Error('Clé API Gemini non configurée dans les secrets GitHub (VITE_GEMINI_API_KEY)')
   }
+  if (apiKey.startsWith('AQ.')) {
+    throw new Error("Format de clé invalide (commence par AQ.) — ce n'est pas une clé API Gemini. Va sur aistudio.google.com/app/apikey et génère une clé qui commence par AIza")
+  }
+}
+
+export async function generateRecipe(dishName, servings = 2, constraints = '') {
+  checkApiKey()
 
   const model = genAI.getGenerativeModel({ model: MODEL })
 
@@ -41,15 +48,18 @@ Réponds UNIQUEMENT avec ce JSON, rien d'autre:
   "tips": "Conseil optionnel"
 }`
 
-  const result = await model.generateContent(prompt)
-  const text = result.response.text()
-  return extractJSON(text)
+  try {
+    const result = await model.generateContent(prompt)
+    const text = result.response.text()
+    return extractJSON(text)
+  } catch (err) {
+    const msg = err?.message || String(err)
+    throw new Error('Gemini API: ' + msg)
+  }
 }
 
 export async function suggestMealsForWeek(preferences = '', nbPeople = 2) {
-  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-    throw new Error('Clé API Gemini non configurée')
-  }
+  checkApiKey()
 
   const model = genAI.getGenerativeModel({ model: MODEL })
 
@@ -69,14 +79,16 @@ Réponds UNIQUEMENT avec ce JSON:
   ]
 }`
 
-  const result = await model.generateContent(prompt)
-  return extractJSON(result.response.text())
+  try {
+    const result = await model.generateContent(prompt)
+    return extractJSON(result.response.text())
+  } catch (err) {
+    throw new Error('Gemini API: ' + (err?.message || String(err)))
+  }
 }
 
 export async function generateShoppingListFromMeals(mealNames, nbPeople = 2) {
-  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-    throw new Error('Clé API Gemini non configurée')
-  }
+  checkApiKey()
 
   const model = genAI.getGenerativeModel({ model: MODEL })
 
@@ -93,6 +105,10 @@ Réponds UNIQUEMENT avec ce JSON:
 
 Catégories: fruits, viande, épicerie, hygiène, maison, boissons, autre`
 
-  const result = await model.generateContent(prompt)
-  return extractJSON(result.response.text())
+  try {
+    const result = await model.generateContent(prompt)
+    return extractJSON(result.response.text())
+  } catch (err) {
+    throw new Error('Gemini API: ' + (err?.message || String(err)))
+  }
 }
