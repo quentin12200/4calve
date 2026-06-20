@@ -5,7 +5,7 @@ import OpenAI from 'openai'
 
 const TOKEN_KEY = 'google_gmail_token'
 const TOKEN_EXPIRY_KEY = 'google_gmail_token_expiry'
-const SENDER = 'nepasrepondre@notification.cemp.caisse-epargne.fr'
+const SENDER = 'caisse-epargne.fr'
 
 function getSavedToken() {
   const token = localStorage.getItem(TOKEN_KEY)
@@ -90,8 +90,14 @@ export function useGmailExpenses() {
   const connect = useCallback(async () => {
     setLoading(true)
     setError(null)
+    // Force re-consent to get Gmail scope
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(TOKEN_EXPIRY_KEY)
     try {
-      const result = await signInWithPopup(auth, googleProvider)
+      const provider = new GoogleAuthProvider()
+      provider.addScope('https://www.googleapis.com/auth/gmail.readonly')
+      provider.setCustomParameters({ prompt: 'consent' })
+      const result = await signInWithPopup(auth, provider)
       const credential = GoogleAuthProvider.credentialFromResult(result)
       const token = credential.accessToken
       localStorage.setItem(TOKEN_KEY, token)
@@ -114,10 +120,18 @@ export function useGmailExpenses() {
     setError(null)
     try {
       const after = Math.floor((Date.now() - daysBack * 86400000) / 1000)
-      const search = await gmailFetch(token, `messages?q=from:${SENDER} after:${after}&maxResults=20`)
+      // Search by domain + paiement keywords
+      const q = encodeURIComponent(`from:${SENDER} after:${after}`)
+      const search = await gmailFetch(token, `messages?q=${q}&maxResults=30`)
       const messageIds = search.messages || []
 
-      if (messageIds.length === 0) return []
+      if (messageIds.length === 0) {
+        // Fallback: broader search without date filter
+        const search2 = await gmailFetch(token, `messages?q=${encodeURIComponent(`from:${SENDER}`)}&maxResults=10`)
+        const ids2 = search2.messages || []
+        if (ids2.length === 0) return []
+        messageIds.push(...ids2)
+      }
 
       const emailTexts = await Promise.all(
         messageIds.map(async ({ id }) => {
