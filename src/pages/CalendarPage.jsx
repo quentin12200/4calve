@@ -156,7 +156,7 @@ export default function CalendarPage() {
         const shiftDay = (val) => {
           if (!val) return null
           const d = val.toDate ? val.toDate() : new Date(val)
-          return new Date(d.getTime() + 86400000)
+          return new Date(d.getTime() - 86400000)
         }
         return updateEvent(e.id, {
           startDate: shiftDay(e.startDate),
