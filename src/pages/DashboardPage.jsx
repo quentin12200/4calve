@@ -27,29 +27,31 @@ function toDate(val) {
 
 function WeatherWidget({ weather }) {
   if (!weather) return null
+  const gradient = weather.outdoor
+    ? 'linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)'
+    : 'linear-gradient(135deg, #6366F1 0%, #A855F7 100%)'
   return (
-    <Card style={{ padding: '14px 16px' }}>
+    <div style={{ borderRadius: 'var(--radius)', padding: '16px 18px', background: gradient, color: 'white', boxShadow: '0 4px 16px rgba(99,102,241,0.25)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 36 }}>{weather.icon}</span>
+          <span style={{ fontSize: 40 }}>{weather.icon}</span>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text)' }}>{weather.temp}°C</div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{weather.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{weather.temp}°C</div>
+            <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>{weather.label}</div>
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>↑{weather.tempMax}° ↓{weather.tempMin}°</div>
-          {weather.rain > 30 && <div style={{ fontSize: 12, color: '#7B8FB0', marginTop: 2 }}>💧 {weather.rain}% pluie</div>}
+          <div style={{ fontSize: 13, opacity: 0.85 }}>↑{weather.tempMax}° ↓{weather.tempMin}°</div>
+          {weather.rain > 30 && <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>💧 {weather.rain}% pluie</div>}
           <div style={{
-            marginTop: 6, display: 'inline-block', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-            background: weather.outdoor ? '#EFF7EF' : '#EEF3FB',
-            color: weather.outdoor ? '#4A7A4A' : '#4A6A9A',
+            marginTop: 8, display: 'inline-block', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 700,
+            background: 'rgba(255,255,255,0.25)', backdropFilter: 'blur(4px)',
           }}>
             {weather.outdoor ? '✅ Idéal dehors' : '🏠 Activité intérieure'}
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -214,17 +216,20 @@ export default function DashboardPage() {
   const priorityColor = { haute: 'danger', normale: 'info', basse: 'success' }
 
   const sectionTitle = (text) => (
-    <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 12px' }}>{text}</h2>
+    <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ display: 'inline-block', width: 4, height: 16, background: 'var(--color-accent)', borderRadius: 99 }} />
+      {text}
+    </h2>
   )
 
   const quickActions = [
-    { label: 'Tâches', icon: CheckSquare, to: '/tasks', color: '#7B8FB0' },
-    { label: 'Courses', icon: ShoppingCart, to: '/shopping', color: '#6B8E6B' },
-    { label: 'Repas', icon: UtensilsCrossed, to: '/meals', color: '#B07B8B' },
-    { label: 'Agenda', icon: CalendarDays, to: '/calendar', color: '#8B9B6B' },
-    { label: 'Dépenses', icon: Wallet, to: '/expenses', color: '#8B7355' },
-    { label: 'Messages', icon: MessageCircle, to: '/chat', color: '#7B8FB0' },
-    { label: 'Sport', icon: Dumbbell, to: 'https://callistheni-leyrat.vercel.app/', color: '#E07B54', external: true },
+    { label: 'Tâches', icon: CheckSquare, to: '/tasks', color: '#22C55E' },
+    { label: 'Courses', icon: ShoppingCart, to: '/shopping', color: '#F97316' },
+    { label: 'Repas', icon: UtensilsCrossed, to: '/meals', color: '#EF4444' },
+    { label: 'Agenda', icon: CalendarDays, to: '/calendar', color: '#3B82F6' },
+    { label: 'Dépenses', icon: Wallet, to: '/expenses', color: '#F59E0B' },
+    { label: 'Messages', icon: MessageCircle, to: '/chat', color: '#06B6D4' },
+    { label: 'Sport', icon: Dumbbell, to: 'https://callistheni-leyrat.vercel.app/', color: '#A855F7', external: true },
   ]
 
   const name = userProfile?.displayName || user?.displayName || 'toi'

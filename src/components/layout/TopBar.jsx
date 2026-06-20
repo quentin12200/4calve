@@ -9,12 +9,16 @@ export function TopBar({ title, showBack = false, children }) {
     top: 0,
     height: '56px',
     background: 'var(--color-surface)',
-    borderBottom: '1px solid var(--color-border)',
+    borderBottom: '2px solid transparent',
+    backgroundImage: 'linear-gradient(var(--color-surface), var(--color-surface)), linear-gradient(90deg, var(--color-accent), var(--nav-chat))',
+    backgroundOrigin: 'border-box',
+    backgroundClip: 'padding-box, border-box',
     display: 'flex',
     alignItems: 'center',
     padding: '0 16px',
     gap: '12px',
     zIndex: 50,
+    boxShadow: '0 2px 12px rgba(99,102,241,0.1)',
   }
 
   const backBtnStyle = {
