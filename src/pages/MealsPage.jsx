@@ -9,7 +9,7 @@ import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Avatar } from '../components/ui/Avatar'
-import { generateRecipe, suggestMealsForWeek } from '../lib/gemini'
+import { generateRecipe, suggestMealsForWeek, generateShoppingListFromMeals } from '../lib/gemini'
 
 function toDate(val) {
   if (!val) return null
@@ -284,6 +284,7 @@ export default function MealsPage() {
   const [ingrModal, setIngrModal] = useState(null)
   const [geminiModal, setGeminiModal] = useState(false)
   const [suggestModal, setSuggestModal] = useState(false)
+  const [shoppingLoading, setShoppingLoading] = useState(false)
 
   const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 1 })
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
@@ -291,6 +292,25 @@ export default function MealsPage() {
 
   const handleAddToShopping = async (lines) => {
     await Promise.all(lines.map(name => addShoppingItem({ name, category: 'épicerie' })))
+  }
+
+  const handleGenerateWeekShopping = async () => {
+    const weekMeals = days.flatMap(day =>
+      ['midi', 'soir'].map(slot => getMeal(day, slot)).filter(Boolean).map(m => m.dishName)
+    )
+    if (weekMeals.length === 0) return toast.error('Aucun repas planifié cette semaine')
+    setShoppingLoading(true)
+    try {
+      const data = await generateShoppingListFromMeals(weekMeals)
+      await Promise.all(data.items.map(item =>
+        addShoppingItem({ name: `${item.quantity} ${item.name}`, category: item.category || 'épicerie' })
+      ))
+      toast.success(`🛒 ${data.items.length} articles ajoutés aux courses !`)
+    } catch (err) {
+      toast.error('Erreur Gemini : ' + err.message)
+    } finally {
+      setShoppingLoading(false)
+    }
   }
 
   const SlotCell = ({ date, slot }) => {
@@ -316,7 +336,10 @@ export default function MealsPage() {
 
   return (
     <AppLayout title="Repas" topBarActions={
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={handleGenerateWeekShopping} disabled={shoppingLoading} style={{ background: '#6B8E6B', color: 'white', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {shoppingLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <ShoppingCart size={13} />} Courses
+        </button>
         <button onClick={() => setSuggestModal(true)} style={{ background: 'linear-gradient(135deg, #8B7355, #B07B8B)', color: 'white', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
           <Sparkles size={14} /> Semaine
         </button>
