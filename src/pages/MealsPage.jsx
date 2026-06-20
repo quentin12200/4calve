@@ -9,7 +9,7 @@ import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Avatar } from '../components/ui/Avatar'
-import { generateRecipe, suggestMealsForWeek, generateShoppingListFromMeals } from '../lib/gemini'
+import { generateRecipe, suggestMealsForWeek, generateShoppingListFromMeals } from '../lib/openai'
 
 function toDate(val) {
   if (!val) return null
