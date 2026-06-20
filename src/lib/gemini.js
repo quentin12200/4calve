@@ -18,9 +18,6 @@ function checkApiKey() {
   if (!apiKey || apiKey === 'your_gemini_api_key_here') {
     throw new Error('Clé API Gemini non configurée dans les secrets GitHub (VITE_GEMINI_API_KEY)')
   }
-  if (apiKey.startsWith('AQ.')) {
-    throw new Error("Format de clé invalide (commence par AQ.) — ce n'est pas une clé API Gemini. Va sur aistudio.google.com/app/apikey et génère une clé qui commence par AIza")
-  }
 }
 
 export async function generateRecipe(dishName, servings = 2, constraints = '') {
