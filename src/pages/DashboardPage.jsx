@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { isToday, isPast, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { CheckSquare, ShoppingCart, UtensilsCrossed, CalendarDays, Wallet, ChevronRight, MessageCircle, UserPlus } from 'lucide-react'
+import { CheckSquare, ShoppingCart, UtensilsCrossed, CalendarDays, Wallet, ChevronRight, MessageCircle, UserPlus, Dumbbell } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useHousehold } from '../contexts/HouseholdContext'
 import { useNotifications } from '../hooks/useNotifications'
@@ -132,7 +132,7 @@ export default function DashboardPage() {
     { label: 'Repas', icon: UtensilsCrossed, to: '/meals', color: '#B07B8B' },
     { label: 'Agenda', icon: CalendarDays, to: '/calendar', color: '#8B9B6B' },
     { label: 'Dépenses', icon: Wallet, to: '/expenses', color: '#8B7355' },
-    { label: 'Messages', icon: MessageCircle, to: '/chat', color: '#7B8FB0' },
+    { label: 'Sport', icon: Dumbbell, to: 'https://callistheni-leyrat.vercel.app/', color: '#E07B54', external: true },
   ]
 
   const name = userProfile?.displayName || user?.displayName || 'toi'
@@ -166,8 +166,8 @@ export default function DashboardPage() {
 
         {/* Quick actions */}
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
-          {quickActions.map(({ label, icon: Icon, to, color }) => (
-            <button key={to} onClick={() => navigate(to)} style={{
+          {quickActions.map(({ label, icon: Icon, to, color, external }) => (
+            <button key={to} onClick={() => external ? window.open(to, '_blank') : navigate(to)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
               background: 'var(--color-surface)', border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius, 10px)', padding: '14px 16px', cursor: 'pointer',
