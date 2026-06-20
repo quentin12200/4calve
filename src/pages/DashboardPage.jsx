@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { isToday, isPast, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { CheckSquare, ShoppingCart, UtensilsCrossed, CalendarDays, Wallet, ChevronRight, MessageCircle, UserPlus, Dumbbell } from 'lucide-react'
+import { CheckSquare, ShoppingCart, UtensilsCrossed, CalendarDays, Wallet, ChevronRight, MessageCircle, UserPlus, Dumbbell, Flame, Settings, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useHousehold } from '../contexts/HouseholdContext'
 import { useNotifications } from '../hooks/useNotifications'
+import { useWeather } from '../hooks/useWeather'
 import { Avatar } from '../components/ui/Avatar'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -21,6 +23,96 @@ function toDate(val) {
   if (!val) return null
   if (val.toDate) return val.toDate()
   return new Date(val)
+}
+
+function WeatherWidget({ weather }) {
+  if (!weather) return null
+  return (
+    <Card style={{ padding: '14px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 36 }}>{weather.icon}</span>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text)' }}>{weather.temp}°C</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{weather.label}</div>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>↑{weather.tempMax}° ↓{weather.tempMin}°</div>
+          {weather.rain > 30 && <div style={{ fontSize: 12, color: '#7B8FB0', marginTop: 2 }}>💧 {weather.rain}% pluie</div>}
+          <div style={{
+            marginTop: 6, display: 'inline-block', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+            background: weather.outdoor ? '#EFF7EF' : '#EEF3FB',
+            color: weather.outdoor ? '#4A7A4A' : '#4A6A9A',
+          }}>
+            {weather.outdoor ? '✅ Idéal dehors' : '🏠 Activité intérieure'}
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function CalorieWidget({ meals, calorieGoal, onSetGoal }) {
+  const [showGoalInput, setShowGoalInput] = useState(false)
+  const [goalInput, setGoalInput] = useState(calorieGoal || '')
+
+  const todayMeals = meals.filter(m => {
+    const d = toDate(m.date)
+    return d && isToday(d) && m.calories
+  })
+  const totalCalories = todayMeals.reduce((a, m) => a + (m.calories || 0), 0)
+  const goal = calorieGoal || 2000
+  const pct = Math.min((totalCalories / goal) * 100, 100)
+  const remaining = goal - totalCalories
+
+  const barColor = pct > 100 ? '#dc2626' : pct > 80 ? '#f59e0b' : '#16a34a'
+
+  return (
+    <Card style={{ padding: '14px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Flame size={16} color="#ef4444" />
+          <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text)' }}>Calories aujourd'hui</span>
+        </div>
+        <button onClick={() => setShowGoalInput(v => !v)} style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+          {showGoalInput ? <X size={14} /> : <Settings size={14} />}
+        </button>
+      </div>
+
+      {showGoalInput && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <input
+            type="number"
+            value={goalInput}
+            onChange={e => setGoalInput(e.target.value)}
+            placeholder="Objectif kcal (ex: 1800)"
+            style={{ flex: 1, padding: '7px 10px', fontSize: 14, border: '1px solid var(--color-border)', borderRadius: 8, background: 'var(--color-bg)', color: 'var(--color-text)', outline: 'none' }}
+          />
+          <button
+            onClick={() => { onSetGoal(parseInt(goalInput)); setShowGoalInput(false) }}
+            style={{ padding: '7px 14px', background: 'var(--color-accent)', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+          >OK</button>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--color-text)' }}>{totalCalories} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--color-text-muted)' }}>kcal</span></span>
+        <span style={{ fontSize: 13, color: remaining >= 0 ? '#16a34a' : '#dc2626', fontWeight: 700, alignSelf: 'center' }}>
+          {remaining >= 0 ? `${remaining} restantes` : `${Math.abs(remaining)} en excès`}
+        </span>
+      </div>
+
+      <div style={{ height: 8, background: 'var(--color-border)', borderRadius: 99 }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 99, transition: 'width 0.4s' }} />
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>Objectif : {goal} kcal/jour</div>
+
+      {todayMeals.length === 0 && (
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 8 }}>Ajoutez des repas pour suivre vos calories</p>
+      )}
+    </Card>
+  )
 }
 
 function BalanceBar({ members, tasks, expenses }) {
@@ -42,7 +134,6 @@ function BalanceBar({ members, tasks, expenses }) {
 
   const totalTasks = scores.reduce((a, s) => a + s.tasksDone, 0)
   const totalExp = scores.reduce((a, s) => a + s.expensesPaid, 0)
-
   if (totalTasks === 0 && totalExp === 0) return null
 
   return (
@@ -51,7 +142,6 @@ function BalanceBar({ members, tasks, expenses }) {
       <Card style={{ padding: 16 }}>
         {scores.map(({ member, tasksDone, expensesPaid }) => {
           const taskPct = totalTasks > 0 ? Math.round((tasksDone / totalTasks) * 100) : 0
-          const expPct = totalExp > 0 ? Math.round((expensesPaid / totalExp) * 100) : 0
           return (
             <div key={member.id} style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -75,13 +165,11 @@ function BalanceBar({ members, tasks, expenses }) {
         {scores.length >= 2 && totalTasks > 0 && (() => {
           const sorted = [...scores].sort((a, b) => b.tasksDone - a.tasksDone)
           const diff = sorted[0].tasksDone - sorted[1].tasksDone
-          if (diff > 3) {
-            return (
-              <div style={{ marginTop: 4, padding: '8px 12px', background: 'rgba(var(--color-accent-rgb, 139,115,85),0.1)', borderRadius: 8, fontSize: 12, color: 'var(--color-text)', fontWeight: 600 }}>
-                ⚡ {sorted[0].member.displayName} a fait {diff} tâches de plus ce mois-ci
-              </div>
-            )
-          }
+          if (diff > 3) return (
+            <div style={{ marginTop: 4, padding: '8px 12px', background: 'rgba(139,115,85,0.1)', borderRadius: 8, fontSize: 12, color: 'var(--color-text)', fontWeight: 600 }}>
+              ⚡ {sorted[0].member.displayName} a fait {diff} tâches de plus ce mois-ci
+            </div>
+          )
         })()}
       </Card>
     </div>
@@ -89,13 +177,15 @@ function BalanceBar({ members, tasks, expenses }) {
 }
 
 export default function DashboardPage() {
-  const { user, userProfile } = useAuth()
-  const { household, members, tasks, meals, events, expenses, messages } = useHousehold()
+  const { user, userProfile, updateUserProfile } = useAuth()
+  const { household, members, tasks, meals, events, expenses, messages, notes } = useHousehold()
+  const { weather } = useWeather()
   const navigate = useNavigate()
 
   useNotifications(tasks)
 
   const now = new Date()
+
   const todayTasks = tasks.filter(t => {
     if (t.done) return false
     if (!t.dueDate) return true
@@ -118,7 +208,8 @@ export default function DashboardPage() {
     count: tasks.filter(t => t.done && t.doneBy === m.id && t.doneAt && isWithinInterval(toDate(t.doneAt), { start: weekStart, end: weekEnd })).length
   }))
 
-  const unreadMessages = messages.length > 0 ? messages.slice(-1)[0] : null
+  const pinnedNote = (notes || []).find(n => n.pinned)
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null
 
   const priorityColor = { haute: 'danger', normale: 'info', basse: 'success' }
 
@@ -132,6 +223,7 @@ export default function DashboardPage() {
     { label: 'Repas', icon: UtensilsCrossed, to: '/meals', color: '#B07B8B' },
     { label: 'Agenda', icon: CalendarDays, to: '/calendar', color: '#8B9B6B' },
     { label: 'Dépenses', icon: Wallet, to: '/expenses', color: '#8B7355' },
+    { label: 'Messages', icon: MessageCircle, to: '/chat', color: '#7B8FB0' },
     { label: 'Sport', icon: Dumbbell, to: 'https://callistheni-leyrat.vercel.app/', color: '#E07B54', external: true },
   ]
 
@@ -148,13 +240,18 @@ export default function DashboardPage() {
     }
   }
 
+  const handleSetCalorieGoal = async (goal) => {
+    await updateUserProfile({ calorieGoal: goal })
+  }
+
   return (
     <AppLayout title={household?.name || 'Chez Nous'} topBarActions={
-      <button onClick={showInviteCode} title="Inviter quelqu'un" style={{ padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600 }}>
+      <button onClick={showInviteCode} style={{ padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600 }}>
         <UserPlus size={16} /> Inviter
       </button>
     }>
-      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Greeting */}
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--color-text)', margin: 0 }}>
             {getGreeting()}, {name} 👋
@@ -163,6 +260,18 @@ export default function DashboardPage() {
             {format(now, 'EEEE d MMMM', { locale: fr })}
           </p>
         </div>
+
+        {/* Météo */}
+        <WeatherWidget weather={weather} />
+
+        {/* Tableau d'affichage — note épinglée */}
+        {pinnedNote && (
+          <Card style={{ padding: '14px 16px', cursor: 'pointer', borderLeft: '4px solid var(--color-accent)' }} onClick={() => navigate('/notes')}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>📌 Tableau d'affichage</div>
+            {pinnedNote.title && <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text)', marginBottom: 4 }}>{pinnedNote.title}</div>}
+            {pinnedNote.content && <div style={{ fontSize: 14, color: 'var(--color-text)', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>{pinnedNote.content}</div>}
+          </Card>
+        )}
 
         {/* Quick actions */}
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
@@ -181,8 +290,15 @@ export default function DashboardPage() {
           ))}
         </div>
 
+        {/* Calories */}
+        <CalorieWidget
+          meals={meals}
+          calorieGoal={userProfile?.calorieGoal}
+          onSetGoal={handleSetCalorieGoal}
+        />
+
         {/* Last message preview */}
-        {unreadMessages && (
+        {lastMessage && (
           <Card style={{ padding: '12px 14px', cursor: 'pointer' }} onClick={() => navigate('/chat')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -190,10 +306,10 @@ export default function DashboardPage() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text)' }}>
-                  {members.find(m => m.id === unreadMessages.createdBy)?.displayName || 'Message'}
+                  {members.find(m => m.id === lastMessage.createdBy)?.displayName || 'Message'}
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {unreadMessages.text}
+                  {lastMessage.text}
                 </div>
               </div>
               <ChevronRight size={16} color="var(--color-text-muted)" />
@@ -256,6 +372,7 @@ export default function DashboardPage() {
                         <div style={{ fontWeight: 600, color: 'var(--color-text)', fontSize: 14 }}>{meal.dishName}</div>
                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
                           {format(toDate(meal.date), 'EEEE d MMM', { locale: fr })} · {meal.slot === 'midi' ? 'Déjeuner' : 'Dîner'}
+                          {meal.calories && <span style={{ color: '#ef4444', marginLeft: 6 }}>🔥 {meal.calories} kcal</span>}
                         </div>
                       </div>
                       {cook && <Avatar name={cook.displayName} color={cook.color} size="sm" />}

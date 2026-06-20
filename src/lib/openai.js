@@ -73,3 +73,56 @@ Réponds UNIQUEMENT avec ce JSON:
 Catégories: fruits, viande, épicerie, hygiène, maison, boissons, autre`
   return askGPT(prompt)
 }
+
+export async function estimateCalories(mealName, servings = 2) {
+  const prompt = `Estime les calories pour "${mealName}" (${servings} personnes).
+Donne les calories par personne et les macros approximatifs.
+
+Réponds UNIQUEMENT avec ce JSON:
+{
+  "caloriesPerPerson": 450,
+  "protein": 30,
+  "carbs": 45,
+  "fat": 15,
+  "fiber": 5
+}`
+  return askGPT(prompt)
+}
+
+export async function scanReceipt(base64Image) {
+  const apiKey = import.meta.env.VITE_OPENAI_API_KEY
+  if (!apiKey) throw new Error('Clé OpenAI non configurée')
+  const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
+
+  const res = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${base64Image}` }
+        },
+        {
+          type: 'text',
+          text: `Analyse ce ticket de caisse et liste tous les articles alimentaires achetés.
+Ignore les totaux, taxes, numéros de caisse.
+
+Réponds UNIQUEMENT avec ce JSON:
+{
+  "items": [
+    { "name": "Poulet", "category": "viande" },
+    { "name": "Tomates", "category": "fruits" }
+  ]
+}
+Catégories possibles: fruits, viande, épicerie, hygiène, maison, boissons, autre`
+        }
+      ]
+    }],
+    response_format: { type: 'json_object' },
+    max_tokens: 1000,
+  })
+
+  const data = JSON.parse(res.choices[0].message.content)
+  return data.items || []
+}

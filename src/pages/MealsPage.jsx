@@ -9,7 +9,7 @@ import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Avatar } from '../components/ui/Avatar'
-import { generateRecipe, suggestMealsForWeek, generateShoppingListFromMeals } from '../lib/openai'
+import { generateRecipe, suggestMealsForWeek, generateShoppingListFromMeals, estimateCalories } from '../lib/openai'
 
 function toDate(val) {
   if (!val) return null
@@ -213,7 +213,9 @@ function AddMealModal({ open, onClose, date, slot, members, addMeal }) {
     if (!form.dishName.trim()) { toast.error('Nom du plat requis'); return }
     setLoading(true)
     try {
-      await addMeal({ ...form, date: date.toISOString() })
+      let nutrition = null
+      try { nutrition = await estimateCalories(form.dishName, 2) } catch {}
+      await addMeal({ ...form, date: date.toISOString(), ...(nutrition ? { calories: nutrition.caloriesPerPerson, nutrition } : {}) })
       toast.success('Repas ajouté !')
       onClose()
     } catch { toast.error('Erreur') }

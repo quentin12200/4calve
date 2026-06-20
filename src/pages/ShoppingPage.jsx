@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react'
-import { Plus, X, CheckCircle2, Circle, Archive, BookMarked, Save, Trash2, Share2 } from 'lucide-react'
+import { Plus, X, CheckCircle2, Circle, Archive, BookMarked, Save, Trash2, Share2, Camera, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useHousehold } from '../contexts/HouseholdContext'
 import { AppLayout } from '../components/layout/AppLayout'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input } from '../components/ui/Input'
+import { scanReceipt } from '../lib/openai'
 
 const CATEGORIES = {
   'fruits & légumes': { keywords: ['pomme', 'poire', 'banane', 'orange', 'citron', 'tomate', 'salade', 'carotte', 'courgette', 'poivron', 'oignon', 'ail', 'poireau', 'champignon', 'avocat', 'fraise', 'raisin', 'fruits', 'légumes', 'laitue', 'épinards', 'brocoli'], emoji: '🥦' },
@@ -90,7 +91,9 @@ export default function ShoppingPage() {
   const [archiving, setArchiving] = useState(false)
   const [showSave, setShowSave] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const inputRef = useRef(null)
+  const cameraRef = useRef(null)
 
   const handleAdd = async (e) => {
     e?.preventDefault()
@@ -140,6 +143,29 @@ export default function ShoppingPage() {
     }
   }
 
+  const handleScanReceipt = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setScanning(true)
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const items = await scanReceipt(base64)
+      if (items.length === 0) { toast('Aucun article détecté'); return }
+      await Promise.all(items.map(item => addShoppingItem({ name: item.name, category: item.category || detectCategory(item.name) })))
+      toast.success(`${items.length} article${items.length > 1 ? 's' : ''} ajouté${items.length > 1 ? 's' : ''} depuis le ticket !`)
+    } catch (err) {
+      toast.error('Erreur scan : ' + err.message)
+    } finally {
+      setScanning(false)
+      if (cameraRef.current) cameraRef.current.value = ''
+    }
+  }
+
   const handleShareList = () => {
     const url = `${window.location.origin}/share/${household?.id}`
     if (navigator.share) {
@@ -181,6 +207,10 @@ export default function ShoppingPage() {
           <Save size={16} />
         </button>
       )}
+      <button onClick={() => cameraRef.current?.click()} disabled={scanning} style={{ padding: '6px 8px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--color-text-muted)' }}>
+        {scanning ? <Loader2 size={16} /> : <Camera size={16} />}
+      </button>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleScanReceipt} style={{ display: 'none' }} />
       {checkedCount > 0 && (
         <Button icon={Archive} size="sm" variant="secondary" onClick={handleArchive} loading={archiving}>
           ({checkedCount})
