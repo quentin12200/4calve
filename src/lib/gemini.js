@@ -3,8 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY
 const genAI = new GoogleGenerativeAI(apiKey)
 
-// gemini-1.5-flash est le modèle le plus disponible universellement
-const MODEL = 'gemini-1.5-flash'
+const MODEL = 'gemini-2.0-flash'
 
 function extractJSON(text) {
   let clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
