@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, isWithinInterval } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, ShoppingCart, Utensils, Home, Music, Heart, MoreHorizontal, Trash2, Target } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, ShoppingCart, Utensils, Home, Music, Heart, MoreHorizontal, Trash2, Target, Mail, Loader2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useHousehold } from '../contexts/HouseholdContext'
+import { useGmailExpenses } from '../hooks/useGmailExpenses'
 import { AppLayout } from '../components/layout/AppLayout'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
@@ -168,9 +169,12 @@ function BudgetBars({ monthExpenses, budgets }) {
 export default function ExpensesPage() {
   const { user } = useAuth()
   const { expenses, members, household, addExpense, deleteExpense, updateBudgets } = useHousehold()
+  const { connected: gmailConnected, loading: gmailLoading, fetchExpenses } = useGmailExpenses()
   const [monthDate, setMonthDate] = useState(new Date())
   const [addModal, setAddModal] = useState(false)
   const [budgetModal, setBudgetModal] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importPreview, setImportPreview] = useState(null)
 
   const monthStart = startOfMonth(monthDate)
   const monthEnd = endOfMonth(monthDate)
@@ -197,6 +201,39 @@ export default function ExpensesPage() {
     color: cat.color,
   })).filter(d => d.amount > 0)
 
+  const handleGmailImport = async () => {
+    setImporting(true)
+    try {
+      const found = await fetchExpenses(30)
+      if (found.length === 0) { toast('Aucune dépense trouvée dans les 30 derniers jours'); return }
+      setImportPreview(found)
+    } catch (err) {
+      toast.error('Erreur Gmail : ' + err.message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const confirmImport = async () => {
+    if (!importPreview) return
+    setImporting(true)
+    try {
+      await Promise.all(importPreview.map(e => addExpense({
+        amount: e.amount,
+        description: e.description,
+        category: e.category || 'autre',
+        paidBy: user.uid,
+        date: new Date(e.date),
+      })))
+      toast.success(`${importPreview.length} dépense${importPreview.length > 1 ? 's' : ''} importée${importPreview.length > 1 ? 's' : ''} !`)
+      setImportPreview(null)
+    } catch {
+      toast.error('Erreur import')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const handleDelete = async (expense) => {
     if (!confirm(`Supprimer "${expense.description}" ?`)) return
     try { await deleteExpense(expense.id); toast.success('Dépense supprimée') } catch { toast.error('Erreur') }
@@ -206,6 +243,10 @@ export default function ExpensesPage() {
     <div style={{ display: 'flex', gap: 6 }}>
       <button onClick={() => setBudgetModal(true)} style={{ padding: '6px 8px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--color-text-muted)' }}>
         <Target size={16} />
+      </button>
+      <button onClick={handleGmailImport} disabled={importing || gmailLoading} title="Importer depuis Gmail" style={{ padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--color-text-muted)', fontSize: 13, fontWeight: 600 }}>
+        {importing || gmailLoading ? <Loader2 size={16} /> : <Mail size={16} />}
+        Gmail
       </button>
       <Button icon={Plus} size="sm" onClick={() => setAddModal(true)}>Ajouter</Button>
     </div>
@@ -316,6 +357,41 @@ export default function ExpensesPage() {
 
       <AddExpenseModal open={addModal} onClose={() => setAddModal(false)} members={members} addExpense={addExpense} />
       {budgetModal && <BudgetModal open onClose={() => setBudgetModal(false)} budgets={household?.budgets} onSave={updateBudgets} />}
+
+      {importPreview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={() => setImportPreview(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--color-surface)', borderRadius: '20px 20px 0 0', padding: 24, width: '100%', maxHeight: '70vh', overflowY: 'auto' }}>
+            <h3 style={{ fontWeight: 700, fontSize: 17, marginBottom: 4 }}>Dépenses trouvées</h3>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>{importPreview.length} dépense{importPreview.length > 1 ? 's' : ''} détectée{importPreview.length > 1 ? 's' : ''} dans tes emails Caisse d'Épargne</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {importPreview.map((e, i) => {
+                const cat = getCategoryInfo(e.category)
+                const Icon = cat.icon
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--color-bg)', borderRadius: 10, border: '1px solid var(--color-border)' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: cat.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon size={16} color={cat.color} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)' }}>{e.description}</div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{e.date} · {cat.label}</div>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{Number(e.amount).toFixed(2)} €</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setImportPreview(null)} style={{ flex: 1, padding: 13, border: '1px solid var(--color-border)', borderRadius: 10, fontSize: 15, fontWeight: 600, background: 'transparent', color: 'var(--color-text)', cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={confirmImport} disabled={importing} style={{ flex: 2, padding: 13, border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, background: 'var(--color-accent)', color: 'white', cursor: 'pointer' }}>
+                {importing ? 'Import...' : 'Importer tout'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   )
 }

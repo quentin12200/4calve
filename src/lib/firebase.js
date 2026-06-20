@@ -22,6 +22,7 @@ export const storage = getStorage(app)
 export const googleProvider = new GoogleAuthProvider()
 googleProvider.addScope('https://www.googleapis.com/auth/calendar')
 googleProvider.addScope('https://www.googleapis.com/auth/calendar.events')
+googleProvider.addScope('https://www.googleapis.com/auth/gmail.readonly')
 googleProvider.setCustomParameters({ access_type: 'offline', prompt: 'consent' })
 
 // Analytics only in browser (not SSR or service worker)
