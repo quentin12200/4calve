@@ -77,7 +77,7 @@ export function HouseholdProvider({ children }) {
       createdBy: user.uid,
       createdAt: serverTimestamp()
     })
-    await updateDoc(doc(db, 'users', user.uid), { householdId: ref.id })
+    await setDoc(doc(db, 'users', user.uid), { householdId: ref.id }, { merge: true })
     return { id: ref.id, inviteCode: code }
   }
 
@@ -89,7 +89,7 @@ export function HouseholdProvider({ children }) {
     await updateDoc(doc(db, 'households', hDoc.id), {
       members: [...(hDoc.data().members || []), user.uid]
     })
-    await updateDoc(doc(db, 'users', user.uid), { householdId: hDoc.id })
+    await setDoc(doc(db, 'users', user.uid), { householdId: hDoc.id }, { merge: true })
   }
 
   const addTask = (data) => addDoc(collection(db, `households/${household.id}/tasks`), {
