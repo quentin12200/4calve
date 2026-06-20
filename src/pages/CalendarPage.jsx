@@ -5,9 +5,10 @@ import {
   format, isToday
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, MapPin, Clock, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, MapPin, Clock, Trash2, RefreshCw, CalendarCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useHousehold } from '../contexts/HouseholdContext'
+import { useGoogleCalendar } from '../hooks/useGoogleCalendar'
 import { AppLayout } from '../components/layout/AppLayout'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
@@ -118,8 +119,25 @@ function AddEventModal({ open, onClose, defaultDate, members, addEvent }) {
 
 export default function CalendarPage() {
   const { events, members, addEvent, deleteEvent } = useHousehold()
+  const { connected, loading: gcLoading, connect, getEvents, convertGoogleEventToLocal } = useGoogleCalendar()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(new Date())
+  const [syncing, setSyncing] = useState(false)
+
+  const handleSyncGoogle = async () => {
+    setSyncing(true)
+    try {
+      if (!connected) await connect()
+      const gEvents = await getEvents(60)
+      const toImport = gEvents.filter(ge => !events.some(e => e.googleEventId === ge.id))
+      await Promise.all(toImport.map(ge => addEvent(convertGoogleEventToLocal(ge))))
+      toast.success(`${toImport.length} événement(s) importé(s) depuis Google Agenda`)
+    } catch (err) {
+      toast.error('Erreur Google Agenda : ' + err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
   const [addModal, setAddModal] = useState(false)
 
   const monthStart = startOfMonth(currentMonth)
@@ -156,7 +174,15 @@ export default function CalendarPage() {
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
   const topBarActions = (
-    <Button icon={Plus} size="sm" onClick={() => setAddModal(true)}>Ajouter</Button>
+    <div style={{ display: 'flex', gap: 8 }}>
+      <button onClick={handleSyncGoogle} disabled={syncing} style={{ background: connected ? 'var(--color-success)' : 'var(--color-surface)', color: connected ? 'white' : 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+        {syncing ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <CalendarCheck size={14} />}
+        {connected ? 'Sync Google' : 'Google Agenda'}
+      </button>
+      <button onClick={() => setAddModal(true)} style={{ background: 'var(--color-accent)', color: 'white', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Plus size={18} />
+      </button>
+    </div>
   )
 
   return (

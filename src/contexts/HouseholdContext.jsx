@@ -21,6 +21,7 @@ export function HouseholdProvider({ children }) {
   const [meals, setMeals] = useState([])
   const [events, setEvents] = useState([])
   const [expenses, setExpenses] = useState([])
+  const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -29,9 +30,7 @@ export function HouseholdProvider({ children }) {
       const data = snap.data()
       if (data?.householdId) {
         const hSnap = await getDoc(doc(db, 'households', data.householdId))
-        if (hSnap.exists()) {
-          setHousehold({ id: hSnap.id, ...hSnap.data() })
-        }
+        if (hSnap.exists()) setHousehold({ id: hSnap.id, ...hSnap.data() })
       }
       setLoading(false)
     })
@@ -58,8 +57,10 @@ export function HouseholdProvider({ children }) {
     subs.push(onSnapshot(query(collection(db, `households/${hid}/expenses`), orderBy('date', 'desc')), s => {
       setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })))
     }))
+    subs.push(onSnapshot(query(collection(db, `households/${hid}/notes`), orderBy('createdAt', 'desc')), s => {
+      setNotes(s.docs.map(d => ({ id: d.id, ...d.data() })))
+    }))
 
-    // Load members
     if (household.members) {
       Promise.all(household.members.map(uid => getDoc(doc(db, 'users', uid))))
         .then(snaps => setMembers(snaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() }))))
@@ -71,76 +72,56 @@ export function HouseholdProvider({ children }) {
   const createHousehold = async (name) => {
     const code = generateCode()
     const ref = await addDoc(collection(db, 'households'), {
-      name,
-      inviteCode: code,
-      members: [user.uid],
-      createdBy: user.uid,
-      createdAt: serverTimestamp()
+      name, inviteCode: code, members: [user.uid], createdBy: user.uid, createdAt: serverTimestamp()
     })
     await setDoc(doc(db, 'users', user.uid), { householdId: ref.id }, { merge: true })
     return { id: ref.id, inviteCode: code }
   }
 
   const joinHousehold = async (code) => {
-    // Search by invite code
     const snap = await getDocs(query(collection(db, 'households'), where('inviteCode', '==', code)))
     if (snap.empty) throw new Error('Code invalide')
     const hDoc = snap.docs[0]
-    await updateDoc(doc(db, 'households', hDoc.id), {
-      members: [...(hDoc.data().members || []), user.uid]
-    })
+    await updateDoc(doc(db, 'households', hDoc.id), { members: [...(hDoc.data().members || []), user.uid] })
     await setDoc(doc(db, 'users', user.uid), { householdId: hDoc.id }, { merge: true })
   }
 
-  const addTask = (data) => addDoc(collection(db, `households/${household.id}/tasks`), {
-    ...data, createdBy: user.uid, createdAt: serverTimestamp(), done: false
-  })
+  const h = (sub) => `households/${household.id}/${sub}`
 
-  const updateTask = (id, data) => updateDoc(doc(db, `households/${household.id}/tasks`, id), data)
+  const addTask = (data) => addDoc(collection(db, h('tasks')), { ...data, createdBy: user.uid, createdAt: serverTimestamp(), done: false })
+  const updateTask = (id, data) => updateDoc(doc(db, h('tasks'), id), data)
+  const deleteTask = (id) => deleteDoc(doc(db, h('tasks'), id))
 
-  const deleteTask = (id) => deleteDoc(doc(db, `households/${household.id}/tasks`, id))
+  const addShoppingItem = (data) => addDoc(collection(db, h('shopping')), { ...data, createdBy: user.uid, createdAt: serverTimestamp(), checked: false })
+  const updateShoppingItem = (id, data) => updateDoc(doc(db, h('shopping'), id), data)
+  const deleteShoppingItem = (id) => deleteDoc(doc(db, h('shopping'), id))
 
-  const addShoppingItem = (data) => addDoc(collection(db, `households/${household.id}/shopping`), {
-    ...data, createdBy: user.uid, createdAt: serverTimestamp(), checked: false
-  })
+  const addMeal = (data) => addDoc(collection(db, h('meals')), { ...data, createdBy: user.uid, createdAt: serverTimestamp() })
+  const updateMeal = (id, data) => updateDoc(doc(db, h('meals'), id), data)
+  const deleteMeal = (id) => deleteDoc(doc(db, h('meals'), id))
 
-  const updateShoppingItem = (id, data) => updateDoc(doc(db, `households/${household.id}/shopping`, id), data)
+  const addEvent = (data) => addDoc(collection(db, h('events')), { ...data, createdBy: user.uid, createdAt: serverTimestamp() })
+  const updateEvent = (id, data) => updateDoc(doc(db, h('events'), id), data)
+  const deleteEvent = (id) => deleteDoc(doc(db, h('events'), id))
 
-  const deleteShoppingItem = (id) => deleteDoc(doc(db, `households/${household.id}/shopping`, id))
+  const addExpense = (data) => addDoc(collection(db, h('expenses')), { ...data, createdBy: user.uid, createdAt: serverTimestamp() })
+  const updateExpense = (id, data) => updateDoc(doc(db, h('expenses'), id), data)
+  const deleteExpense = (id) => deleteDoc(doc(db, h('expenses'), id))
 
-  const addMeal = (data) => addDoc(collection(db, `households/${household.id}/meals`), {
-    ...data, createdBy: user.uid, createdAt: serverTimestamp()
-  })
-
-  const updateMeal = (id, data) => updateDoc(doc(db, `households/${household.id}/meals`, id), data)
-
-  const deleteMeal = (id) => deleteDoc(doc(db, `households/${household.id}/meals`, id))
-
-  const addEvent = (data) => addDoc(collection(db, `households/${household.id}/events`), {
-    ...data, createdBy: user.uid, createdAt: serverTimestamp()
-  })
-
-  const updateEvent = (id, data) => updateDoc(doc(db, `households/${household.id}/events`, id), data)
-
-  const deleteEvent = (id) => deleteDoc(doc(db, `households/${household.id}/events`, id))
-
-  const addExpense = (data) => addDoc(collection(db, `households/${household.id}/expenses`), {
-    ...data, createdBy: user.uid, createdAt: serverTimestamp()
-  })
-
-  const updateExpense = (id, data) => updateDoc(doc(db, `households/${household.id}/expenses`, id), data)
-
-  const deleteExpense = (id) => deleteDoc(doc(db, `households/${household.id}/expenses`, id))
+  const addNote = (data) => addDoc(collection(db, h('notes')), { ...data, createdBy: user.uid, createdAt: serverTimestamp() })
+  const updateNote = (id, data) => updateDoc(doc(db, h('notes'), id), { ...data, updatedAt: serverTimestamp() })
+  const deleteNote = (id) => deleteDoc(doc(db, h('notes'), id))
 
   return (
     <HouseholdContext.Provider value={{
-      household, members, tasks, shopping, meals, events, expenses, loading,
+      household, members, tasks, shopping, meals, events, expenses, notes, loading,
       createHousehold, joinHousehold,
       addTask, updateTask, deleteTask,
       addShoppingItem, updateShoppingItem, deleteShoppingItem,
       addMeal, updateMeal, deleteMeal,
       addEvent, updateEvent, deleteEvent,
-      addExpense, updateExpense, deleteExpense
+      addExpense, updateExpense, deleteExpense,
+      addNote, updateNote, deleteNote
     }}>
       {children}
     </HouseholdContext.Provider>

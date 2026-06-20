@@ -10,6 +10,7 @@ import ShoppingPage from './pages/ShoppingPage'
 import MealsPage from './pages/MealsPage'
 import CalendarPage from './pages/CalendarPage'
 import ExpensesPage from './pages/ExpensesPage'
+import NotesPage from './pages/NotesPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -53,6 +54,7 @@ function AppRoutes() {
       <Route path="/meals" element={<ProtectedRoute><MealsPage /></ProtectedRoute>} />
       <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
       <Route path="/expenses" element={<ProtectedRoute><ExpensesPage /></ProtectedRoute>} />
+      <Route path="/notes" element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
