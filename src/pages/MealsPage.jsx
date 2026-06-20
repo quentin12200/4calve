@@ -33,7 +33,8 @@ function GeminiRecipeModal({ open, onClose, onAddToShopping }) {
       setRecipe(result)
       setStep('result')
     } catch (err) {
-      toast.error('Erreur Gemini — vérifie ta clé API')
+      console.error('Gemini error:', err)
+      toast.error('Gemini : ' + (err.message || 'Erreur inconnue'), { duration: 6000 })
       setStep('input')
     }
   }
