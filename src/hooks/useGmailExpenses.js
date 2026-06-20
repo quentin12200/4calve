@@ -6,13 +6,12 @@ import OpenAI from 'openai'
 const TOKEN_KEY = 'google_gmail_token'
 const TOKEN_EXPIRY_KEY = 'google_gmail_token_expiry'
 
-// Multiple search patterns to maximise chances of finding the emails
 const SEARCH_QUERIES = [
   'from:nepasrepondre@notification.cemp.caisse-epargne.fr',
-  'from:caisse-epargne.fr paiement',
-  'from:cemp.caisse-epargne.fr',
-  'paiement carte caisse epargne',
-  'nepasrepondre notification cemp',
+  'from:caisse-epargne',
+  '"paiement par carte" "validé"',
+  '"Votre paiement par carte"',
+  'caisse epargne paiement carte',
 ]
 
 function getSavedToken() {
@@ -40,50 +39,93 @@ async function gmailFetch(token, path) {
 
 function decodeBase64(str) {
   try {
-    return atob(str.replace(/-/g, '+').replace(/_/g, '/'))
+    // URL-safe base64 → standard base64
+    const standard = str.replace(/-/g, '+').replace(/_/g, '/')
+    const decoded = atob(standard)
+    // Handle UTF-8 encoding
+    return decodeURIComponent(escape(decoded))
   } catch {
-    return ''
+    try { return atob(str.replace(/-/g, '+').replace(/_/g, '/')) } catch { return '' }
   }
 }
 
-function extractEmailText(payload) {
-  if (!payload) return ''
-  if (payload.body?.data) return decodeBase64(payload.body.data)
-  if (payload.parts) {
-    for (const part of payload.parts) {
-      const text = extractEmailText(part)
-      if (text) return text
+function extractAllText(part, depth = 0) {
+  if (depth > 8) return ''
+  const texts = []
+
+  if (part.body?.data) {
+    texts.push(decodeBase64(part.body.data))
+  }
+
+  if (part.parts) {
+    for (const child of part.parts) {
+      texts.push(extractAllText(child, depth + 1))
     }
   }
-  if (payload.mimeType === 'text/plain' && payload.body?.data) return decodeBase64(payload.body.data)
-  if (payload.mimeType === 'text/html' && payload.body?.data) {
-    return decodeBase64(payload.body.data).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
-  }
-  return ''
+
+  return texts.join('\n')
 }
 
-async function parseExpensesWithAI(emailTexts) {
+function extractEmailText(msg) {
+  // Use snippet as a reliable fallback (Google extracts it)
+  const snippet = msg.snippet || ''
+
+  const payload = msg.payload
+  if (!payload) return snippet
+
+  // Try to get the best text representation
+  const rawText = extractAllText(payload)
+
+  // Strip HTML tags if present
+  const cleaned = rawText
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s{3,}/g, ' ')
+    .trim()
+
+  // Return the richest content, or fall back to snippet
+  if (cleaned.length > 50) return cleaned
+  if (rawText.length > 50) return rawText
+  return snippet
+}
+
+function buildEmailSummary(msg) {
+  const headers = msg.payload?.headers || []
+  const subject = headers.find(h => h.name === 'Subject')?.value || ''
+  const from = headers.find(h => h.name === 'From')?.value || ''
+  const date = headers.find(h => h.name === 'Date')?.value || ''
+  const body = extractEmailText(msg)
+
+  return `Sujet: ${subject}\nDe: ${from}\nDate: ${date}\nContenu: ${body.slice(0, 1200)}`
+}
+
+async function parseExpensesWithAI(emailSummaries) {
   const apiKey = import.meta.env.VITE_OPENAI_API_KEY
   if (!apiKey) throw new Error('Clé OpenAI non configurée')
   const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
 
-  const combined = emailTexts.slice(0, 15).map((t, i) => `--- Email ${i + 1} ---\n${t.slice(0, 1000)}`).join('\n\n')
+  const combined = emailSummaries.slice(0, 20).map((t, i) => `--- Email ${i + 1} ---\n${t}`).join('\n\n')
 
   const res = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [{
       role: 'user',
-      content: `Voici des emails de notification bancaire (Caisse d'Épargne ou autre banque). Extrais chaque dépense par carte.
-Pour chaque dépense, donne : montant (nombre décimal), description (enseigne/commerce), date (YYYY-MM-DD), catégorie parmi: courses, resto, maison, loisirs, santé, autre.
+      content: `Voici des emails de la Caisse d'Épargne (ou autre banque). Certains ont le sujet "Votre paiement par carte a été validé" ou "Un paiement par carte a été validé".
 
-Réponds UNIQUEMENT avec ce JSON:
+Extrais TOUTES les dépenses par carte que tu trouves (montant, commerce, date).
+Catégorie parmi: courses, resto, maison, loisirs, santé, transport, autre.
+
+Réponds UNIQUEMENT avec ce JSON (expenses peut être vide si vraiment rien trouvé):
 {
   "expenses": [
     { "amount": 42.50, "description": "Carrefour", "date": "2024-01-15", "category": "courses" }
   ]
 }
-
-Si aucune dépense trouvée, réponds: { "expenses": [] }
 
 Emails:
 ${combined}`
@@ -126,7 +168,6 @@ export function useGmailExpenses() {
   }, [])
 
   const fetchExpenses = useCallback(async (daysBack = 90) => {
-    // Always re-auth to ensure we have a fresh Gmail token
     const token = await connect()
 
     setLoading(true)
@@ -136,57 +177,48 @@ export function useGmailExpenses() {
       const seenIds = new Set()
       const allMessageIds = []
 
-      // Try each search pattern until we find emails
       for (const q of SEARCH_QUERIES) {
         const query = encodeURIComponent(`${q} after:${after}`)
         try {
           const search = await gmailFetch(token, `messages?q=${query}&maxResults=30`)
-          const msgs = search.messages || []
-          for (const m of msgs) {
-            if (!seenIds.has(m.id)) {
-              seenIds.add(m.id)
-              allMessageIds.push(m)
-            }
+          for (const m of (search.messages || [])) {
+            if (!seenIds.has(m.id)) { seenIds.add(m.id); allMessageIds.push(m) }
           }
-          if (allMessageIds.length > 0) break // found some, stop searching
-        } catch {
-          // try next query
-        }
+          if (allMessageIds.length >= 5) break
+        } catch { /* try next */ }
       }
 
-      // If still nothing, try without date filter on the first query
+      // Fallback: no date filter
       if (allMessageIds.length === 0) {
         for (const q of SEARCH_QUERIES.slice(0, 3)) {
           try {
-            const search = await gmailFetch(token, `messages?q=${encodeURIComponent(q)}&maxResults=15`)
-            const msgs = search.messages || []
-            for (const m of msgs) {
+            const search = await gmailFetch(token, `messages?q=${encodeURIComponent(q)}&maxResults=20`)
+            for (const m of (search.messages || [])) {
               if (!seenIds.has(m.id)) { seenIds.add(m.id); allMessageIds.push(m) }
             }
-            if (allMessageIds.length > 0) break
-          } catch {
-            // try next
-          }
+            if (allMessageIds.length >= 3) break
+          } catch { /* try next */ }
         }
       }
 
       if (allMessageIds.length === 0) {
-        throw new Error(`Aucun email bancaire trouvé. Vérifie que les emails de la Caisse d'Épargne sont dans ta boîte Gmail (expéditeur: nepasrepondre@notification.cemp.caisse-epargne.fr)`)
+        throw new Error('Aucun email bancaire trouvé dans Gmail. Vérifie que tu es connecté avec le bon compte Google.')
       }
 
-      const emailTexts = await Promise.all(
-        allMessageIds.map(async ({ id }) => {
-          const msg = await gmailFetch(token, `messages/${id}?format=full`)
-          return extractEmailText(msg.payload)
-        })
+      // Fetch full message content including snippet
+      const messages = await Promise.all(
+        allMessageIds.slice(0, 20).map(({ id }) =>
+          gmailFetch(token, `messages/${id}?format=full`)
+        )
       )
 
-      const validTexts = emailTexts.filter(t => t.length > 10)
-      if (validTexts.length === 0) {
-        throw new Error('Emails trouvés mais contenu vide — format non supporté')
+      const emailSummaries = messages.map(buildEmailSummary).filter(t => t.length > 30)
+
+      if (emailSummaries.length === 0) {
+        throw new Error('Emails trouvés mais impossible de lire le contenu.')
       }
 
-      return await parseExpensesWithAI(validTexts)
+      return await parseExpensesWithAI(emailSummaries)
     } catch (err) {
       setError(err.message)
       throw err
