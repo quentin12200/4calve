@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { isToday, isPast, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { CheckSquare, ShoppingCart, UtensilsCrossed, CalendarDays, Wallet, ChevronRight, MessageCircle } from 'lucide-react'
+import { CheckSquare, ShoppingCart, UtensilsCrossed, CalendarDays, Wallet, ChevronRight, MessageCircle, UserPlus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useHousehold } from '../contexts/HouseholdContext'
 import { useNotifications } from '../hooks/useNotifications'
@@ -137,8 +137,23 @@ export default function DashboardPage() {
 
   const name = userProfile?.displayName || user?.displayName || 'toi'
 
+  const showInviteCode = () => {
+    const code = household?.inviteCode
+    if (!code) return
+    if (navigator.share) {
+      navigator.share({ title: 'Rejoindre notre foyer', text: `Code d'invitation : ${code}` })
+    } else {
+      navigator.clipboard.writeText(code)
+      import('react-hot-toast').then(({ default: toast }) => toast.success(`Code copié : ${code}`))
+    }
+  }
+
   return (
-    <AppLayout title={household?.name || 'Chez Nous'}>
+    <AppLayout title={household?.name || 'Chez Nous'} topBarActions={
+      <button onClick={showInviteCode} title="Inviter quelqu'un" style={{ padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600 }}>
+        <UserPlus size={16} /> Inviter
+      </button>
+    }>
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--color-text)', margin: 0 }}>
