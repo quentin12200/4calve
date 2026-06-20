@@ -43,7 +43,8 @@ function AddTaskModal({ open, onClose, members, currentUser, addTask }) {
     if (!form.title.trim()) { toast.error('Titre requis'); return }
     setLoading(true)
     try {
-      await addTask({ ...form, dueDate: form.dueDate ? new Date(form.dueDate) : null })
+      const parseLocalDate = (s) => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d) }
+      await addTask({ ...form, dueDate: form.dueDate ? parseLocalDate(form.dueDate) : null })
       toast.success('Tâche ajoutée !')
       onClose()
       setForm({ title: '', description: '', assignedTo: currentUser?.uid || '', priority: 'normale', dueDate: '', recurrence: 'unique' })

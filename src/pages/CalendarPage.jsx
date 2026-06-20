@@ -24,6 +24,13 @@ const CATEGORY_COLORS = {
   maison: '#8B7355',
 }
 
+function parseLocalDate(str) {
+  // new Date('YYYY-MM-DD') parses as UTC midnight → wrong day in local timezone
+  // Split manually to get local midnight instead
+  const [y, m, d] = str.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 function toDate(val) {
   if (!val) return null
   if (val.toDate) return val.toDate()
@@ -53,8 +60,8 @@ function AddEventModal({ open, onClose, defaultDate, members, addEvent }) {
     try {
       await addEvent({
         ...form,
-        startDate: new Date(form.startDate),
-        endDate: new Date(form.endDate),
+        startDate: parseLocalDate(form.startDate),
+        endDate: parseLocalDate(form.endDate),
         color: CATEGORY_COLORS[form.category] || form.color,
       })
       toast.success('Événement ajouté !')
