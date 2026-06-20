@@ -204,8 +204,8 @@ export default function ExpensesPage() {
   const handleGmailImport = async () => {
     setImporting(true)
     try {
-      const found = await fetchExpenses(30)
-      if (found.length === 0) { toast('Aucune dépense trouvée dans les 30 derniers jours'); return }
+      const found = await fetchExpenses(90)
+      if (found.length === 0) { toast('Aucune dépense détectée par l\'IA dans les emails trouvés'); return }
       setImportPreview(found)
     } catch (err) {
       toast.error('Erreur Gmail : ' + err.message)
